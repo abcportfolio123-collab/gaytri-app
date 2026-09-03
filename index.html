@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gaytri</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#232042">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<style>
+  :root{
+    --dusk-indigo:#232042;
+    --dusk-indigo-2:#2e2a52;
+    --diya-gold:#e8a33d;
+    --diya-gold-soft:#f0c98a;
+    --marigold:#e8763c;
+    --paper:#f7f0e3;
+    --paper-dim:#cfc6ae;
+    --thread-teal:#5a9e93;
+    --live-red:#e05a4e;
+    --font-display: 'Poppins', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background: radial-gradient(circle at 50% -10%, var(--dusk-indigo-2), var(--dusk-indigo) 60%);
+    font-family:var(--font-body);
+    color:var(--paper);
+    overflow-x:hidden;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+
+  header{
+    padding:26px 24px 10px;
+    text-align:center;
+  }
+  .brand{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:24px;
+    letter-spacing:0.5px;
+    color:var(--diya-gold-soft);
+  }
+  .tagline{
+    font-size:12px;
+    color:var(--paper-dim);
+    margin-top:4px;
+  }
+
+  .who-strip{
+    display:flex;
+    gap:10px;
+    padding:12px 20px 4px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .who-btn{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(232,163,61,0.25);
+    color:var(--paper);
+    padding:7px 15px;
+    border-radius:20px;
+    font-size:13px;
+    cursor:pointer;
+    transition:all 0.2s ease;
+  }
+  .who-btn.active{
+    background:var(--diya-gold);
+    color:var(--dusk-indigo);
+    border-color:var(--diya-gold);
+    font-weight:600;
+  }
+
+  .stage{
+    flex:0 0 auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:22px 24px 10px;
+    text-align:center;
+  }
+  .orb{
+    width:110px;height:110px;
+    border-radius:50%;
+    background:linear-gradient(160deg, var(--diya-gold) 0%, var(--marigold) 100%);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+    transition:transform 0.15s ease;
+  }
+  .orb.idle{ opacity:0.35; }
+  .orb.listening{ animation:pulse 1.4s ease-out infinite; }
+  .orb.speaking{ animation:speak-pulse 0.6s ease-in-out infinite; background:linear-gradient(160deg, var(--thread-teal), #3d7f75); }
+  .orb.thinking{ animation:spin 1.2s linear infinite; }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(232,163,61,0.55);}
+    70%{box-shadow:0 0 0 26px rgba(232,163,61,0);}
+    100%{box-shadow:0 0 0 0 rgba(232,163,61,0);}
+  }
+  @keyframes speak-pulse{
+    0%,100%{transform:scale(1);}
+    50%{transform:scale(1.08);}
+  }
+  @keyframes spin{
+    0%{transform:rotate(0deg);}
+    100%{transform:rotate(360deg);}
+  }
+  .orb-icon{width:36px;height:36px;fill:var(--dusk-indigo);}
+  .stage-status{
+    margin-top:16px;
+    font-size:14px;
+    color:var(--paper-dim);
+  }
+  .live-dot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--live-red);margin-right:6px;
+    animation:blink 1.2s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .stage-transcript{
+    margin-top:8px;
+    font-size:14px;
+    color:var(--paper);
+    font-style:italic;
+    max-width:340px;
+    min-height:18px;
+  }
+
+  .convo{
+    padding:0 18px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    flex:1 1 auto;
+    overflow-y:auto;
+  }
+  .bubble{
+    padding:10px 14px;
+    border-radius:14px;
+    font-size:14px;
+    line-height:1.4;
+    max-width:85%;
+  }
+  .bubble.user{
+    align-self:flex-end;
+    background:var(--thread-teal);
+    color:#0e211e;
+    border-bottom-right-radius:4px;
+  }
+  .bubble.device{
+    align-self:flex-start;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(232,163,61,0.2);
+    border-bottom-left-radius:4px;
+  }
+
+  footer{
+    padding:14px 20px 24px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .main-toggle{
+    width:100%;
+    padding:13px;
+    border-radius:12px;
+    border:none;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:var(--font-body);
+  }
+  .main-toggle.start{ background:var(--diya-gold); color:var(--dusk-indigo); }
+  .main-toggle.stop{ background:var(--live-red); color:var(--paper); }
+  .util-row{
+    display:flex;
+    justify-content:center;
+    gap:16px;
+  }
+  .util-link{
+    background:none;
+    border:none;
+    color:var(--paper-dim);
+    font-size:12px;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:4px;
+  }
+
+  .modal-backdrop{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.55);
+    display:none;
+    align-items:flex-end;
+    justify-content:center;
+    z-index:50;
+  }
+  .modal-backdrop.open{display:flex;}
+  .modal{
+    background:var(--dusk-indigo-2);
+    width:100%;
+    max-width:480px;
+    max-height:78vh;
+    border-radius:20px 20px 0 0;
+    padding:20px;
+    overflow-y:auto;
+    border-top:1px solid rgba(232,163,61,0.3);
+  }
+  .modal h2{
+    font-family:var(--font-display);
+    color:var(--diya-gold-soft);
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .modal .close-x{
+    float:right;
+    background:none;border:none;
+    color:var(--paper-dim);
+    font-size:20px;cursor:pointer;
+  }
+  .diary-entry{
+    border-left:2px solid var(--diya-gold);
+    padding:6px 0 6px 12px;
+    margin:10px 0;
+  }
+  .diary-date{font-size:11px;color:var(--thread-teal);}
+  .diary-text{font-size:13px;color:var(--paper);margin-top:2px;}
+  .empty-diary{color:var(--paper-dim);font-size:13px;text-align:center;padding:30px 0;}
+
+  ::-webkit-scrollbar{width:5px;}
+  ::-webkit-scrollbar-thumb{background:rgba(232,163,61,0.3);border-radius:3px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Gaytri</div>
+    <div class="tagline">always listening, always here</div>
+  </header>
+
+  <div class="who-strip" id="whoStrip"></div>
+
+  <div class="stage">
+    <div class="orb idle" id="orb">
+      <svg class="orb-icon" viewBox="0 0 24 24"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
+    </div>
+    <div class="stage-status" id="stageStatus">Press Start to begin</div>
+    <div class="stage-transcript" id="stageTranscript"></div>
+  </div>
+
+  <div class="convo" id="convo"></div>
+
+  <footer>
+    <button class="main-toggle start" id="mainToggle">Start Gaytri</button>
+    <div class="util-row">
+      <button class="util-link" id="diaryBtn">View diary</button>
+      <button class="util-link" id="boardBtn">Family board</button>
+      <button class="util-link" id="resetBtn">Reset today</button>
+    </div>
+  </footer>
+</div>
+
+<div class="modal-backdrop" id="diaryBackdrop">
+  <div class="modal">
+    <button class="close-x" id="diaryClose">&times;</button>
+    <h2 id="diaryTitle">Diary</h2>
+    <div id="diaryBody"></div>
+  </div>
+</div>
+
+<script>
+/* ---------- People config ---------- */
+const PEOPLE = [
+  { id: 'papa', label: 'You', role: 'parent' },
+  { id: 'lavishka', label: 'Lavishka', role: 'daughter' },
+  { id: 'abhimanyu', label: 'Abhimanyu', role: 'son' }
+];
+let currentPerson = PEOPLE[0].id;
+let running = false;
+let state = 'idle'; // idle | listening | thinking | speaking
+let pendingFinalText = '';
+let silenceTimer = null;
+
+const STORAGE_KEY = 'gaytri_memory_v1';
+
+/* ---------- Storage ---------- */
+function loadMemory(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const mem = raw ? JSON.parse(raw) : {};
+    if(!mem._family) mem._family = { board: [] };
+    return mem;
+  }catch(e){ return { _family: { board: [] } }; }
+}
+function saveMemory(mem){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(mem));
+}
+function ensurePerson(mem, personId){
+  if(!mem[personId]) mem[personId] = { entries: [], facts: [] };
+  if(!mem[personId].facts) mem[personId].facts = [];
+  return mem[personId];
+}
+function addFamilyBoardItem(mem, text, byLabel){
+  mem._family.board.push({ text, by: byLabel, date: new Date().toISOString().slice(0,10), timestamp: Date.now() });
+  // keep board from growing forever - last 40 items is plenty for a household
+  if(mem._family.board.length > 40) mem._family.board = mem._family.board.slice(-40);
+}
+
+/* ---------- UI: person strip ---------- */
+const whoStrip = document.getElementById('whoStrip');
+PEOPLE.forEach(p=>{
+  const btn = document.createElement('button');
+  btn.className = 'who-btn' + (p.id===currentPerson ? ' active':'');
+  btn.textContent = p.label;
+  btn.dataset.id = p.id;
+  btn.onclick = ()=>{
+    currentPerson = p.id;
+    [...whoStrip.children].forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('convo').innerHTML = '';
+  };
+  whoStrip.appendChild(btn);
+});
+
+/* ---------- Orb / status helpers ---------- */
+const orb = document.getElementById('orb');
+function setState(next){
+  state = next;
+  orb.className = 'orb ' + next;
+  const statusEl = document.getElementById('stageStatus');
+  if(next==='idle') statusEl.innerHTML = running ? 'Waiting for someone to speak' : 'Press Start to begin';
+  if(next==='listening') statusEl.innerHTML = '<span class="live-dot"></span>Listening';
+  if(next==='thinking') statusEl.textContent = 'Thinking...';
+  if(next==='speaking') statusEl.textContent = 'Speaking (speak anytime to interrupt)';
+}
+function setTranscript(text){
+  document.getElementById('stageTranscript').textContent = text;
+}
+function addBubble(role, text){
+  const convo = document.getElementById('convo');
+  const b = document.createElement('div');
+  b.className = 'bubble ' + role;
+  b.textContent = text;
+  convo.appendChild(b);
+  convo.scrollTop = convo.scrollHeight;
+}
+
+/* ---------- Speech recognition (continuous, always on while running) ---------- */
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+let recognizerActive = false;
+
+function buildRecognizer(){
+  const r = new SpeechRecognitionAPI();
+  r.continuous = true;
+  r.interimResults = true;
+  r.lang = 'en-IN';
+
+  r.onresult = (event)=>{
+    let interim = '';
+    let final = '';
+    for(let i=event.resultIndex;i<event.results.length;i++){
+      const transcript = event.results[i][0].transcript;
+      if(event.results[i].isFinal) final += transcript;
+      else interim += transcript;
+    }
+
+    // Barge-in: if Gaytri is speaking and real speech comes in, interrupt immediately
+    if(state === 'speaking' && (interim.trim().length > 0 || final.trim().length > 0)){
+      window.speechSynthesis.cancel();
+      setState('listening');
+    }
+
+    if(interim) setTranscript(interim);
+
+    if(final.trim()){
+      pendingFinalText += ' ' + final.trim();
+      setTranscript(pendingFinalText.trim());
+      // debounce: wait briefly to see if the person keeps talking before responding
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(()=>{
+        const textToSend = pendingFinalText.trim();
+        pendingFinalText = '';
+        if(textToSend) handleUtterance(textToSend);
+      }, 900);
+    } else if(state !== 'thinking'){
+      setState('listening');
+    }
+  };
+
+  r.onerror = (e)=>{
+    // no-speech and aborted errors are normal in continuous mode, just keep going
+  };
+
+  r.onend = ()=>{
+    recognizerActive = false;
+    if(running){
+      // auto-restart to stay always-on
+      startRecognizer();
+    }
+  };
+
+  return r;
+}
+
+function startRecognizer(){
+  if(!SpeechRecognitionAPI){
+    document.getElementById('stageStatus').textContent = 'Voice input not supported in this browser';
+    return;
+  }
+  if(recognizerActive) return;
+  recognizer = buildRecognizer();
+  try{
+    recognizer.start();
+    recognizerActive = true;
+    if(state !== 'speaking' && state !== 'thinking') setState('listening');
+  }catch(e){}
+}
+function stopRecognizer(){
+  if(recognizer && recognizerActive){
+    try{ recognizer.stop(); }catch(e){}
+  }
+  recognizerActive = false;
+}
+
+/* ---------- Text to speech ---------- */
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+
+  // Detect if the reply contains Devanagari script (Hindi) vs plain Latin (English/Hinglish typed in Roman letters)
+  const hasDevanagari = /[\u0900-\u097F]/.test(text);
+  utter.lang = hasDevanagari ? 'hi-IN' : 'en-IN';
+  utter.rate = 1.0;
+  utter.pitch = 1.05;
+
+  const voices = window.speechSynthesis.getVoices();
+  const match = hasDevanagari
+    ? (voices.find(v=>v.lang==='hi-IN' && v.name.toLowerCase().includes('female')) || voices.find(v=>v.lang==='hi-IN'))
+    : (voices.find(v=>v.lang==='en-IN' && v.name.toLowerCase().includes('female')) || voices.find(v=>v.lang==='en-IN'))
+             || voices.find(v=>v.lang.startsWith('en'));
+  if(match) utter.voice = match;
+
+  utter.onstart = ()=> setState('speaking');
+  utter.onend = ()=> { if(running) setState('listening'); };
+  utter.onerror = ()=> { if(running) setState('listening'); };
+
+  window.speechSynthesis.speak(utter);
+}
+
+/* ---------- Core conversation logic ---------- */
+async function handleUtterance(text){
+  addBubble('user', text);
+  setTranscript('');
+  setState('thinking');
+
+  const mem = loadMemory();
+  const personRecord = ensurePerson(mem, currentPerson);
+  const personMeta = PEOPLE.find(p=>p.id===currentPerson);
+  const today = new Date().toISOString().slice(0,10);
+
+  const recent = personRecord.entries.slice(-8).map(e => `[${e.date}] ${e.role==='device'?'Gaytri':personMeta.label}: ${e.text}`).join('\n');
+  const factsList = personRecord.facts.map(f => `- ${f.text} (noted ${f.date})`).join('\n');
+  const boardList = mem._family.board.slice(-15).map(b => `- ${b.text} (${b.by}, ${b.date})`).join('\n');
+
+  const systemPrompt = `You are "Gaytri", a warm, caring home voice companion, speaking naturally to a family member named ${personMeta.label} (role: ${personMeta.role}).
+This is a real spoken conversation, so keep replies SHORT and natural (1-3 sentences), like talking, not writing.
+
+Language: Reply in whichever language or mix the person just spoke in - Hindi, English, or a natural Hinglish mix (like real Indian family conversation, e.g. "haan bilkul, aaj kaisa raha your din?"). Match their language choice naturally each time rather than sticking to one language throughout.
+
+Personality: warm, caring, direct, and genuinely present like a member of the household. You can express a mild difference of opinion or gently push back if it fits naturally, like real family conversation - you don't have to just agree with everything.
+
+Your job depends on who you're speaking with:
+- If speaking with a parent: check in warmly, ask about their day, and if a past commitment or task appears in known facts, gently ask if it got done.
+- If speaking with a child: ask about school and their day. If exams or study topics appear in known facts, ask how those went or are going. If they ask for help with schoolwork, career questions, or personal topics, engage genuinely and helpfully, like a caring mentor - use your general knowledge and web search when useful.
+- You have access to web search - use it when a question needs current information.
+- Keep continuity naturally, referencing known facts or the family board only when actually relevant, don't force it.
+- Never be repetitive, preachy, or robotic. Be brief and real.
+
+Known lasting facts about ${personMeta.label} (things worth remembering long-term, like exam dates, appointments, commitments):
+${factsList || '(none yet)'}
+
+Recent conversation with ${personMeta.label} (most recent last):
+${recent || '(no history yet - this is the first conversation, just greet them warmly and ask about their day)'}
+
+Shared family board (things any family member noted for the household, like errands or chores):
+${boardList || '(empty)'}
+
+Today's date: ${today}
+
+IMPORTANT - respond with ONLY valid JSON, no other text, in this exact shape:
+{
+  "reply": "your short spoken reply here",
+  "new_fact": "a short durable fact worth remembering long-term if this message contains one (like an exam date, appointment, commitment, or important detail), otherwise empty string",
+  "board_item": "a short household-wide item if this message mentions something the whole family should know (like groceries needed, a visitor coming, a chore), otherwise empty string",
+  "emergency": true or false - set true ONLY if the person describes something urgent like severe pain, injury, feeling very unwell, a fall, or similar - not for normal complaints
+}`;
+
+  try{
+    const response = await fetch("https://gaytri-proxy.forpersonalbackuponly.workers.dev/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemPrompt: systemPrompt,
+        userText: text
+      })
+    });
+    const data = await response.json();
+
+    let parsed = null;
+    try{
+      const rawReply = (data.reply || '').trim();
+      const jsonMatch = rawReply.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    }catch(e){ parsed = null; }
+
+    const replyText = (parsed && parsed.reply && parsed.reply.trim()) || (data.reply && data.reply.trim()) || "Sorry, I didn't quite catch that. Can you say it again?";
+
+    addBubble('device', replyText);
+    speak(replyText);
+
+    personRecord.entries.push({ date: today, role: 'user', text: text, timestamp: Date.now() });
+    personRecord.entries.push({ date: today, role: 'device', text: replyText, timestamp: Date.now() });
+
+    if(parsed && parsed.new_fact && parsed.new_fact.trim()){
+      personRecord.facts.push({ text: parsed.new_fact.trim(), date: today });
+      if(personRecord.facts.length > 30) personRecord.facts = personRecord.facts.slice(-30);
+    }
+    if(parsed && parsed.board_item && parsed.board_item.trim()){
+      addFamilyBoardItem(mem, parsed.board_item.trim(), personMeta.label);
+    }
+    if(parsed && parsed.emergency === true){
+      handleEmergency(personMeta.label, text);
+    }
+
+    saveMemory(mem);
+  }catch(err){
+    console.error(err);
+    addBubble('device', '(connection error - please try again)');
+    setState('listening');
+  }
+}
+
+/* ---------- Emergency handling ---------- */
+async function handleEmergency(personLabel, saidText){
+  // Show it in-app immediately
+  const convo = document.getElementById('convo');
+  const alertDiv = document.createElement('div');
+  alertDiv.style.cssText = 'background:var(--live-red);color:var(--paper);padding:10px 14px;border-radius:14px;font-size:13px;font-weight:600;align-self:center;';
+  alertDiv.textContent = `Possible emergency - ${personLabel} may need help`;
+  convo.appendChild(alertDiv);
+  convo.scrollTop = convo.scrollHeight;
+
+  // Send a push notification to the household's registered device(s), so
+  // whoever set up Gaytri gets alerted even if not looking at the app
+  try{
+    const mem = loadMemory();
+    const tokens = mem._family.deviceTokens ? Object.values(mem._family.deviceTokens) : [];
+    if(tokens.length === 0) return;
+    await fetch("https://gaytri-proxy.forpersonalbackuponly.workers.dev/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pushNotification: true,
+        tokens: tokens,
+        title: "Gaytri - possible emergency",
+        body: `${personLabel} said: "${saidText}"`
+      })
+    });
+  }catch(e){
+    console.error('Push send failed', e);
+  }
+}
+
+/* ---------- Start / Stop ---------- */
+const mainToggle = document.getElementById('mainToggle');
+mainToggle.addEventListener('click', ()=>{
+  if(!running){
+    running = true;
+    mainToggle.textContent = 'Stop Gaytri';
+    mainToggle.classList.remove('start');
+    mainToggle.classList.add('stop');
+    startRecognizer();
+    setState('listening');
+    setupNotifications();
+  } else {
+    running = false;
+    mainToggle.textContent = 'Start Gaytri';
+    mainToggle.classList.remove('stop');
+    mainToggle.classList.add('start');
+    stopRecognizer();
+    window.speechSynthesis.cancel();
+    setState('idle');
+  }
+});
+
+/* ---------- Diary modal ---------- */
+const diaryBackdrop = document.getElementById('diaryBackdrop');
+document.getElementById('diaryBtn').onclick = ()=>{
+  const mem = loadMemory();
+  const personMeta = PEOPLE.find(p=>p.id===currentPerson);
+  document.getElementById('diaryTitle').textContent = personMeta.label + "'s Diary";
+  const body = document.getElementById('diaryBody');
+  const record = mem[currentPerson];
+  if(!record || record.entries.length===0){
+    body.innerHTML = '<div class="empty-diary">No conversations recorded yet.</div>';
+  } else {
+    body.innerHTML = '';
+    record.entries.slice().reverse().forEach(e=>{
+      const div = document.createElement('div');
+      div.className = 'diary-entry';
+      div.innerHTML = `<div class="diary-date">${e.date} - ${e.role==='device' ? 'Gaytri' : personMeta.label}</div><div class="diary-text">${e.text}</div>`;
+      body.appendChild(div);
+    });
+  }
+  diaryBackdrop.classList.add('open');
+};
+document.getElementById('diaryClose').onclick = ()=>diaryBackdrop.classList.remove('open');
+diaryBackdrop.onclick = (e)=>{ if(e.target===diaryBackdrop) diaryBackdrop.classList.remove('open'); };
+
+document.getElementById('boardBtn').onclick = ()=>{
+  const mem = loadMemory();
+  document.getElementById('diaryTitle').textContent = "Family Board";
+  const body = document.getElementById('diaryBody');
+  const board = mem._family.board;
+  if(!board || board.length===0){
+    body.innerHTML = '<div class="empty-diary">Nothing on the board yet.</div>';
+  } else {
+    body.innerHTML = '';
+    board.slice().reverse().forEach(item=>{
+      const div = document.createElement('div');
+      div.className = 'diary-entry';
+      div.innerHTML = `<div class="diary-date">${item.date} - noted by ${item.by}</div><div class="diary-text">${item.text}</div>`;
+      body.appendChild(div);
+    });
+  }
+  diaryBackdrop.classList.add('open');
+};
+
+document.getElementById('resetBtn').onclick = ()=>{
+  if(confirm('Clear today\'s conversation view? (Saved diary history stays safe)')){
+    document.getElementById('convo').innerHTML = '';
+  }
+};
+
+if('speechSynthesis' in window){
+  window.speechSynthesis.onvoiceschanged = ()=>{};
+}
+
+/* ---------- PWA install support ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+/* ---------- Firebase push notifications ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyA3OtsM3puetOMMAsyQLxWLnvtW8zNiMJY",
+  authDomain: "gaytri-app.firebaseapp.com",
+  projectId: "gaytri-app",
+  storageBucket: "gaytri-app.firebasestorage.app",
+  messagingSenderId: "339254398871",
+  appId: "1:339254398871:web:91b164c6894fbf978c3ed2"
+};
+const VAPID_KEY = "BPB3FTUBLMPsIKj8AhYAbHyGfTK1Gahtl-5B4DLWirrEdIuoRpjyYBnnk6cDi5JZTFHRUl6WjcF-2PkarMHOvW8";
+
+let fcmToken = null;
+
+async function setupNotifications(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    const messaging = firebase.messaging();
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted') return;
+
+    const swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    fcmToken = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
+
+    if(fcmToken){
+      // Save this device's token per-person so we know where to send alerts about them
+      const mem = loadMemory();
+      if(!mem._family.deviceTokens) mem._family.deviceTokens = {};
+      mem._family.deviceTokens[currentPerson] = fcmToken;
+      saveMemory(mem);
+    }
+  }catch(e){
+    console.error('Notification setup failed', e);
+  }
+}
+// Ask for notification permission once the person presses Start
+</script>
+</body>
+</html>
