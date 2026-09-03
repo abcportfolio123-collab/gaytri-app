@@ -36,6 +36,9 @@
     max-width:480px;
     margin:0 auto;
     min-height:100vh;
+    min-height:100dvh;
+    height:100vh;
+    height:100dvh;
     display:flex;
     flex-direction:column;
     position:relative;
@@ -364,7 +367,10 @@ let recognizerActive = false;
 
 function buildRecognizer(){
   const r = new SpeechRecognitionAPI();
-  r.continuous = true;
+  // continuous=true is unreliable on Android Chrome - it can re-send old
+  // speech as "new" on each internal restart, causing repeated/garbled text.
+  // Running short single-utterance bursts and restarting cleanly avoids that.
+  r.continuous = false;
   r.interimResults = true;
   r.lang = 'en-IN';
 
@@ -385,16 +391,15 @@ function buildRecognizer(){
 
     if(interim) setTranscript(interim);
 
-    if(final.trim()){
-      pendingFinalText += ' ' + final.trim();
-      setTranscript(pendingFinalText.trim());
-      // debounce: wait briefly to see if the person keeps talking before responding
+    final = final.trim();
+    if(final){
+      setTranscript(final);
       clearTimeout(silenceTimer);
+      // single-utterance mode already waits for a natural pause, so send promptly
       silenceTimer = setTimeout(()=>{
-        const textToSend = pendingFinalText.trim();
-        pendingFinalText = '';
-        if(textToSend) handleUtterance(textToSend);
-      }, 900);
+        setTranscript('');
+        handleUtterance(final);
+      }, 300);
     } else if(state !== 'thinking'){
       setState('listening');
     }
