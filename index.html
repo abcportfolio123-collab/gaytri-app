@@ -311,8 +311,10 @@ function saveMemory(mem){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(mem));
 }
 function ensurePerson(mem, personId){
-  if(!mem[personId]) mem[personId] = { entries: [], facts: [] };
+  if(!mem[personId]) mem[personId] = { entries: [], facts: [], exams: [], subjects: {} };
   if(!mem[personId].facts) mem[personId].facts = [];
+  if(!mem[personId].exams) mem[personId].exams = [];
+  if(!mem[personId].subjects) mem[personId].subjects = {};
   return mem[personId];
 }
 function addFamilyBoardItem(mem, text, byLabel){
@@ -480,6 +482,10 @@ async function handleUtterance(text){
   const recent = personRecord.entries.slice(-8).map(e => `[${e.date}] ${e.role==='device'?'Gaytri':personMeta.label}: ${e.text}`).join('\n');
   const factsList = personRecord.facts.map(f => `- ${f.text} (noted ${f.date})`).join('\n');
   const boardList = mem._family.board.slice(-15).map(b => `- ${b.text} (${b.by}, ${b.date})`).join('\n');
+  const examsList = personRecord.exams.map(e => `- ${e.subject} exam on ${e.date}${e.notes ? ' - ' + e.notes : ''}`).join('\n');
+  const subjectsList = Object.entries(personRecord.subjects).map(([subj, info]) =>
+    `- ${subj}: ${info.status || 'in progress'}${info.topics && info.topics.length ? ' (topics: ' + info.topics.join(', ') + ')' : ''}`
+  ).join('\n');
 
   const systemPrompt = `You are "Gaytri", a warm, caring home voice companion, speaking naturally to a family member named ${personMeta.label} (role: ${personMeta.role}).
 This is a real spoken conversation, so keep replies SHORT and natural (1-3 sentences), like talking, not writing.
@@ -490,13 +496,19 @@ Personality: warm, caring, direct, and genuinely present like a member of the ho
 
 Your job depends on who you're speaking with:
 - If speaking with a parent: check in warmly, ask about their day, and if a past commitment or task appears in known facts, gently ask if it got done.
-- If speaking with a child: ask about school and their day. If exams or study topics appear in known facts, ask how those went or are going. If they ask for help with schoolwork, career questions, or personal topics, engage genuinely and helpfully, like a caring mentor - use your general knowledge and web search when useful.
+- If speaking with a child: ask about school and their day. If exams appear below, ask how preparation is going, especially as the date gets close. If a subject is marked as weak or struggling, gently check in on it rather than avoiding it. If they ask for help with schoolwork, career questions, or personal topics, engage genuinely and helpfully, like a caring mentor - use your general knowledge and web search when useful.
 - You have access to web search - use it when a question needs current information.
-- Keep continuity naturally, referencing known facts or the family board only when actually relevant, don't force it.
+- Keep continuity naturally, referencing known facts, exams, or subjects only when actually relevant, don't force it or interrogate them with questions.
 - Never be repetitive, preachy, or robotic. Be brief and real.
 
-Known lasting facts about ${personMeta.label} (things worth remembering long-term, like exam dates, appointments, commitments):
+Known lasting facts about ${personMeta.label} (things worth remembering long-term):
 ${factsList || '(none yet)'}
+
+Upcoming exams for ${personMeta.label}:
+${examsList || '(none known)'}
+
+Subject/topic progress for ${personMeta.label}:
+${subjectsList || '(none tracked yet)'}
 
 Recent conversation with ${personMeta.label} (most recent last):
 ${recent || '(no history yet - this is the first conversation, just greet them warmly and ask about their day)'}
@@ -509,7 +521,9 @@ Today's date: ${today}
 IMPORTANT - respond with ONLY valid JSON, no other text, in this exact shape:
 {
   "reply": "your short spoken reply here",
-  "new_fact": "a short durable fact worth remembering long-term if this message contains one (like an exam date, appointment, commitment, or important detail), otherwise empty string",
+  "new_fact": "a short durable fact worth remembering long-term if this message contains one (like an appointment, commitment, or important detail not covered by exam/subject fields below), otherwise empty string",
+  "exam_update": { "subject": "subject name", "date": "exam date as mentioned, e.g. 25 September or 2026-09-25", "notes": "short optional note" } if the person mentioned a new or updated exam date, otherwise null,
+  "subject_update": { "subject": "subject name", "status": "one of: strong, weak, learning, in progress", "topic": "specific topic mentioned, if any, otherwise empty string" } if the conversation reveals something about how well the person understands a subject or topic, otherwise null,
   "board_item": "a short household-wide item if this message mentions something the whole family should know (like groceries needed, a visitor coming, a chore), otherwise empty string",
   "emergency": true or false - set true ONLY if the person describes something urgent like severe pain, injury, feeling very unwell, a fall, or similar - not for normal complaints
 }`;
@@ -543,6 +557,23 @@ IMPORTANT - respond with ONLY valid JSON, no other text, in this exact shape:
     if(parsed && parsed.new_fact && parsed.new_fact.trim()){
       personRecord.facts.push({ text: parsed.new_fact.trim(), date: today });
       if(personRecord.facts.length > 30) personRecord.facts = personRecord.facts.slice(-30);
+    }
+    if(parsed && parsed.exam_update && parsed.exam_update.subject && parsed.exam_update.date){
+      const subj = parsed.exam_update.subject.trim();
+      const existingIdx = personRecord.exams.findIndex(e => e.subject.toLowerCase() === subj.toLowerCase());
+      const examEntry = { subject: subj, date: parsed.exam_update.date.trim(), notes: (parsed.exam_update.notes || '').trim(), updated: today };
+      if(existingIdx >= 0) personRecord.exams[existingIdx] = examEntry;
+      else personRecord.exams.push(examEntry);
+    }
+    if(parsed && parsed.subject_update && parsed.subject_update.subject && parsed.subject_update.status){
+      const subj = parsed.subject_update.subject.trim();
+      if(!personRecord.subjects[subj]) personRecord.subjects[subj] = { status: '', topics: [] };
+      personRecord.subjects[subj].status = parsed.subject_update.status.trim();
+      const topic = (parsed.subject_update.topic || '').trim();
+      if(topic && !personRecord.subjects[subj].topics.includes(topic)){
+        personRecord.subjects[subj].topics.push(topic);
+        if(personRecord.subjects[subj].topics.length > 10) personRecord.subjects[subj].topics = personRecord.subjects[subj].topics.slice(-10);
+      }
     }
     if(parsed && parsed.board_item && parsed.board_item.trim()){
       addFamilyBoardItem(mem, parsed.board_item.trim(), personMeta.label);
@@ -620,10 +651,33 @@ document.getElementById('diaryBtn').onclick = ()=>{
   document.getElementById('diaryTitle').textContent = personMeta.label + "'s Diary";
   const body = document.getElementById('diaryBody');
   const record = mem[currentPerson];
+  body.innerHTML = '';
+
+  const exams = (record && record.exams) ? record.exams : [];
+  const subjects = (record && record.subjects) ? record.subjects : {};
+  if(exams.length > 0 || Object.keys(subjects).length > 0){
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'diary-entry';
+    let html = '';
+    if(exams.length > 0){
+      html += '<div class="diary-date">Upcoming exams</div>';
+      html += exams.map(e => `<div class="diary-text">- ${e.subject}: ${e.date}${e.notes ? ' (' + e.notes + ')' : ''}</div>`).join('');
+    }
+    if(Object.keys(subjects).length > 0){
+      html += '<div class="diary-date" style="margin-top:8px;">Subject progress</div>';
+      html += Object.entries(subjects).map(([subj, info]) =>
+        `<div class="diary-text">- ${subj}: ${info.status || 'in progress'}${info.topics && info.topics.length ? ' (' + info.topics.join(', ') + ')' : ''}</div>`
+      ).join('');
+    }
+    summaryDiv.innerHTML = html;
+    body.appendChild(summaryDiv);
+  }
+
   if(!record || record.entries.length===0){
-    body.innerHTML = '<div class="empty-diary">No conversations recorded yet.</div>';
+    if(exams.length === 0 && Object.keys(subjects).length === 0){
+      body.innerHTML = '<div class="empty-diary">No conversations recorded yet.</div>';
+    }
   } else {
-    body.innerHTML = '';
     record.entries.slice().reverse().forEach(e=>{
       const div = document.createElement('div');
       div.className = 'diary-entry';
