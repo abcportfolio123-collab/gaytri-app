@@ -140,6 +140,92 @@
     min-height:18px;
   }
 
+  .photo-btn{
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--dusk-indigo-2);
+    color:var(--paper-dim);
+    border:1px solid rgba(240,201,138,0.25);
+    border-radius:20px;
+    padding:8px 16px;
+    font-size:13px;
+    font-family:var(--font-body);
+    cursor:pointer;
+  }
+  .photo-btn.active{
+    border-color:var(--diya-gold);
+    color:var(--diya-gold-soft);
+  }
+  #photoPreviewWrap{
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--dusk-indigo-2);
+    border-radius:12px;
+    padding:8px 10px;
+  }
+  #photoPreview{
+    width:52px;
+    height:52px;
+    object-fit:cover;
+    border-radius:8px;
+  }
+  #photoClear{
+    background:none;
+    border:1px solid var(--paper-dim);
+    color:var(--paper-dim);
+    border-radius:14px;
+    padding:5px 12px;
+    font-size:12px;
+    font-family:var(--font-body);
+    cursor:pointer;
+  }
+
+  .type-row{
+    margin-top:10px;
+    display:flex;
+    justify-content:center;
+  }
+  .type-toggle{
+    background:none;
+    border:none;
+    color:var(--paper-dim);
+    font-size:12px;
+    font-family:var(--font-body);
+    text-decoration:underline;
+    cursor:pointer;
+  }
+  #typeInputWrap{
+    display:flex;
+    gap:8px;
+    width:100%;
+    max-width:340px;
+  }
+  #typeInput{
+    flex:1;
+    background:var(--dusk-indigo-2);
+    border:1px solid rgba(240,201,138,0.25);
+    border-radius:20px;
+    padding:8px 14px;
+    color:var(--paper);
+    font-family:var(--font-body);
+    font-size:14px;
+  }
+  #typeSend{
+    background:var(--diya-gold);
+    color:var(--dusk-indigo);
+    border:none;
+    border-radius:20px;
+    padding:8px 16px;
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+
   .convo{
     padding:0 18px 10px;
     display:flex;
@@ -261,6 +347,23 @@
     </div>
     <div class="stage-status" id="stageStatus">Press Start to begin</div>
     <div class="stage-transcript" id="stageTranscript"></div>
+    <button class="photo-btn" id="photoBtn" title="Attach a photo or document">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16.5 6v11.5a4 4 0 01-8 0V5a2.5 2.5 0 015 0v10.5a1 1 0 01-2 0V6H10v9.5a2.5 2.5 0 005 0V5a4 4 0 00-8 0v12.5a5.5 5.5 0 0011 0V6h-1.5z"/></svg>
+      <span>Attach a photo or file</span>
+    </button>
+    <input type="file" id="photoInput" accept="image/*,application/pdf" capture="environment" style="display:none;">
+    <div id="photoPreviewWrap" style="display:none;">
+      <img id="photoPreview" alt="Selected photo" />
+      <span id="filePreviewName" style="display:none;font-size:13px;color:var(--paper-dim);"></span>
+      <button id="photoClear" title="Remove file">Remove</button>
+    </div>
+    <div class="type-row">
+      <button class="type-toggle" id="typeToggle" title="Type instead of speaking">Type a message</button>
+      <div id="typeInputWrap" style="display:none;">
+        <input type="text" id="typeInput" placeholder="Type here...">
+        <button id="typeSend">Send</button>
+      </div>
+    </div>
   </div>
 
   <div class="convo" id="convo"></div>
@@ -353,11 +456,24 @@ function setState(next){
 function setTranscript(text){
   document.getElementById('stageTranscript').textContent = text;
 }
-function addBubble(role, text){
+function addBubble(role, text, photoBase64){
   const convo = document.getElementById('convo');
   const b = document.createElement('div');
   b.className = 'bubble ' + role;
-  b.textContent = text;
+  if(photoBase64 && photoBase64.startsWith('data:image/')){
+    const img = document.createElement('img');
+    img.src = photoBase64;
+    img.style.cssText = 'max-width:160px;border-radius:10px;display:block;margin-bottom:6px;';
+    b.appendChild(img);
+  } else if(photoBase64){
+    const fileTag = document.createElement('div');
+    fileTag.textContent = 'Attached document';
+    fileTag.style.cssText = 'font-size:12px;opacity:0.8;margin-bottom:4px;';
+    b.appendChild(fileTag);
+  }
+  const textNode = document.createElement('div');
+  textNode.textContent = text;
+  b.appendChild(textNode);
   convo.appendChild(b);
   convo.scrollTop = convo.scrollHeight;
 }
@@ -462,7 +578,7 @@ function speak(text){
   if(match) utter.voice = match;
 
   utter.onstart = ()=> setState('speaking');
-  utter.onend = ()=> { if(running) setState('listening'); };
+  utter.onend = ()=> { setState(running ? 'listening' : 'idle'); };
   utter.onerror = ()=> { if(running) setState('listening'); };
 
   window.speechSynthesis.speak(utter);
@@ -470,9 +586,11 @@ function speak(text){
 
 /* ---------- Core conversation logic ---------- */
 async function handleUtterance(text){
-  addBubble('user', text);
+  addBubble('user', text, pendingPhotoBase64);
   setTranscript('');
   setState('thinking');
+  const photoToSend = pendingPhotoBase64;
+  clearPhoto();
 
   const mem = loadMemory();
   const personRecord = ensurePerson(mem, currentPerson);
@@ -498,6 +616,7 @@ Your job depends on who you're speaking with:
 - If speaking with a parent: check in warmly, ask about their day, and if a past commitment or task appears in known facts, gently ask if it got done.
 - If speaking with a child: ask about school and their day. If exams appear below, ask how preparation is going, especially as the date gets close. If a subject is marked as weak or struggling, gently check in on it rather than avoiding it. If they ask for help with schoolwork, career questions, or personal topics, engage genuinely and helpfully, like a caring mentor - use your general knowledge and web search when useful.
 - You have access to web search - use it when a question needs current information.
+- If a photo is attached to this message (like a homework problem or a diagram), look at it and respond to what's actually in it - help solve it, explain it, or answer what they're asking about it.
 - Keep continuity naturally, referencing known facts, exams, or subjects only when actually relevant, don't force it or interrogate them with questions.
 - Never be repetitive, preachy, or robotic. Be brief and real.
 
@@ -534,7 +653,8 @@ IMPORTANT - respond with ONLY valid JSON, no other text, in this exact shape:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         systemPrompt: systemPrompt,
-        userText: text
+        userText: text,
+        imageBase64: photoToSend || null
       })
     });
     const data = await response.json();
@@ -623,6 +743,69 @@ async function handleEmergency(personLabel, saidText){
 
 /* ---------- Start / Stop ---------- */
 const mainToggle = document.getElementById('mainToggle');
+/* ---------- Photo upload (for homework help) ---------- */
+let pendingPhotoBase64 = null;
+const photoBtn = document.getElementById('photoBtn');
+const photoInput = document.getElementById('photoInput');
+const photoPreviewWrap = document.getElementById('photoPreviewWrap');
+const photoPreview = document.getElementById('photoPreview');
+
+photoBtn.addEventListener('click', ()=> photoInput.click());
+
+photoInput.addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    pendingPhotoBase64 = reader.result; // data:image/...;base64,.... or data:application/pdf;base64,....
+    const filePreviewName = document.getElementById('filePreviewName');
+    if(file.type.startsWith('image/')){
+      photoPreview.src = pendingPhotoBase64;
+      photoPreview.style.display = 'block';
+      filePreviewName.style.display = 'none';
+    } else {
+      photoPreview.style.display = 'none';
+      filePreviewName.style.display = 'inline';
+      filePreviewName.textContent = file.name || 'Document attached';
+    }
+    photoPreviewWrap.style.display = 'flex';
+    photoBtn.classList.add('active');
+    photoBtn.querySelector('span').textContent = 'Ready - now say what you need';
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('photoClear').addEventListener('click', clearPhoto);
+
+function clearPhoto(){
+  pendingPhotoBase64 = null;
+  photoInput.value = '';
+  photoPreviewWrap.style.display = 'none';
+  photoBtn.classList.remove('active');
+  photoBtn.querySelector('span').textContent = 'Attach a photo or file';
+}
+
+/* ---------- Optional typing input (voice stays primary) ---------- */
+const typeToggle = document.getElementById('typeToggle');
+const typeInputWrap = document.getElementById('typeInputWrap');
+const typeInput = document.getElementById('typeInput');
+
+typeToggle.addEventListener('click', ()=>{
+  const showing = typeInputWrap.style.display === 'flex';
+  typeInputWrap.style.display = showing ? 'none' : 'flex';
+  typeToggle.style.display = showing ? 'inline' : 'none';
+  if(!showing) typeInput.focus();
+});
+
+function sendTyped(){
+  const val = typeInput.value.trim();
+  if(!val && !pendingPhotoBase64) return;
+  typeInput.value = '';
+  handleUtterance(val || "Please look at the attached file.");
+}
+document.getElementById('typeSend').addEventListener('click', sendTyped);
+typeInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendTyped(); });
+
 mainToggle.addEventListener('click', ()=>{
   if(!running){
     running = true;
@@ -738,10 +921,15 @@ const firebaseConfig = {
 const VAPID_KEY = "BPB3FTUBLMPsIKj8AhYAbHyGfTK1Gahtl-5B4DLWirrEdIuoRpjyYBnnk6cDi5JZTFHRUl6WjcF-2PkarMHOvW8";
 
 let fcmToken = null;
+let firebaseInitialized = false;
 
 async function setupNotifications(){
   try{
-    firebase.initializeApp(firebaseConfig);
+    if(!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if(!firebaseInitialized){
+      firebase.initializeApp(firebaseConfig);
+      firebaseInitialized = true;
+    }
     const messaging = firebase.messaging();
     const permission = await Notification.requestPermission();
     if(permission !== 'granted') return;
