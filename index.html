@@ -482,6 +482,7 @@ function addBubble(role, text, photoBase64){
 const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognizer = null;
 let recognizerActive = false;
+let micPausedForSpeech = false;
 
 function buildRecognizer(){
   const r = new SpeechRecognitionAPI();
@@ -529,7 +530,7 @@ function buildRecognizer(){
 
   r.onend = ()=>{
     recognizerActive = false;
-    if(running){
+    if(running && !micPausedForSpeech){
       // auto-restart to stay always-on
       startRecognizer();
     }
@@ -577,9 +578,22 @@ function speak(text){
              || voices.find(v=>v.lang.startsWith('en'));
   if(match) utter.voice = match;
 
-  utter.onstart = ()=> setState('speaking');
-  utter.onend = ()=> { setState(running ? 'listening' : 'idle'); };
-  utter.onerror = ()=> { if(running) setState('listening'); };
+  utter.onstart = ()=>{
+    setState('speaking');
+    // Mute the mic while speaking - phones don't cancel their own speaker
+    // echo, so leaving it on causes Gaytri to mishear her own voice as yours.
+    micPausedForSpeech = true;
+    stopRecognizer();
+  };
+  utter.onend = ()=>{
+    micPausedForSpeech = false;
+    setState(running ? 'listening' : 'idle');
+    if(running) startRecognizer();
+  };
+  utter.onerror = ()=>{
+    micPausedForSpeech = false;
+    if(running){ setState('listening'); startRecognizer(); }
+  };
 
   window.speechSynthesis.speak(utter);
 }
