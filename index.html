@@ -184,6 +184,24 @@
     cursor:pointer;
   }
 
+  #activeFileNote{
+    margin-top:8px;
+    align-items:center;
+    gap:10px;
+    font-size:12px;
+    color:var(--diya-gold-soft);
+  }
+  #activeFileClear{
+    background:none;
+    border:1px solid var(--paper-dim);
+    color:var(--paper-dim);
+    border-radius:14px;
+    padding:3px 10px;
+    font-size:11px;
+    font-family:var(--font-body);
+    cursor:pointer;
+  }
+
   .type-row{
     margin-top:10px;
     display:flex;
@@ -357,6 +375,10 @@
       <span id="filePreviewName" style="display:none;font-size:13px;color:var(--paper-dim);"></span>
       <button id="photoClear" title="Remove file">Remove</button>
     </div>
+    <div id="activeFileNote" style="display:none;">
+      <span>Gaytri can still see your attached file</span>
+      <button id="activeFileClear" title="Stop using this file">Remove</button>
+    </div>
     <div class="type-row">
       <button class="type-toggle" id="typeToggle" title="Type instead of speaking">Type a message</button>
       <div id="typeInputWrap" style="display:none;">
@@ -435,6 +457,7 @@ PEOPLE.forEach(p=>{
   btn.dataset.id = p.id;
   btn.onclick = ()=>{
     currentPerson = p.id;
+    clearActiveAttachment(); // don't carry one person's file into another's chat
     [...whoStrip.children].forEach(c=>c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('convo').innerHTML = '';
@@ -600,11 +623,15 @@ function speak(text){
 
 /* ---------- Core conversation logic ---------- */
 async function handleUtterance(text){
-  addBubble('user', text, pendingPhotoBase64);
+  const newAttachment = pendingPhotoBase64;
+  addBubble('user', text, newAttachment);
   setTranscript('');
   setState('thinking');
-  const photoToSend = pendingPhotoBase64;
+  // Keep the latest attachment for follow-up questions until it is removed
+  if(newAttachment) activeAttachment = newAttachment;
+  const photoToSend = activeAttachment;
   clearPhoto();
+  updateActiveFileNote();
 
   const mem = loadMemory();
   const personRecord = ensurePerson(mem, currentPerson);
@@ -630,7 +657,7 @@ Your job depends on who you're speaking with:
 - If speaking with a parent: check in warmly, ask about their day, and if a past commitment or task appears in known facts, gently ask if it got done.
 - If speaking with a child: ask about school and their day. If exams appear below, ask how preparation is going, especially as the date gets close. If a subject is marked as weak or struggling, gently check in on it rather than avoiding it. If they ask for help with schoolwork, career questions, or personal topics, engage genuinely and helpfully, like a caring mentor - use your general knowledge and web search when useful.
 - You have access to web search - use it when a question needs current information.
-- If a photo is attached to this message (like a homework problem or a diagram), look at it and respond to what's actually in it - help solve it, explain it, or answer what they're asking about it.
+- If a photo or file is attached (like a homework problem, a sample paper or a diagram), look at it and respond to what is actually in it - help solve it, explain it, or answer what they are asking about it. The same file stays attached for follow-up questions until the person removes it, so keep answering about it. If someone asks about a photo or file and none is attached right now, do not pretend to remember or see it - ask them to attach it again.
 - Keep continuity naturally, referencing known facts, exams, or subjects only when actually relevant, don't force it or interrogate them with questions.
 - Never be repetitive, preachy, or robotic. Be brief and real.
 
@@ -759,6 +786,16 @@ async function handleEmergency(personLabel, saidText){
 const mainToggle = document.getElementById('mainToggle');
 /* ---------- Photo upload (for homework help) ---------- */
 let pendingPhotoBase64 = null;
+let activeAttachment = null; // stays attached for follow-up questions
+
+function updateActiveFileNote(){
+  document.getElementById('activeFileNote').style.display = activeAttachment ? 'flex' : 'none';
+}
+function clearActiveAttachment(){
+  activeAttachment = null;
+  updateActiveFileNote();
+}
+document.getElementById('activeFileClear').addEventListener('click', clearActiveAttachment);
 const photoBtn = document.getElementById('photoBtn');
 const photoInput = document.getElementById('photoInput');
 const photoPreviewWrap = document.getElementById('photoPreviewWrap');
@@ -909,6 +946,7 @@ document.getElementById('boardBtn').onclick = ()=>{
 document.getElementById('resetBtn').onclick = ()=>{
   if(confirm('Clear today\'s conversation view? (Saved diary history stays safe)')){
     document.getElementById('convo').innerHTML = '';
+    clearActiveAttachment();
   }
 };
 
