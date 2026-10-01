@@ -348,6 +348,21 @@
 
   ::-webkit-scrollbar{width:5px;}
   ::-webkit-scrollbar-thumb{background:rgba(232,163,61,0.3);border-radius:3px;}
+
+  /* ---- chat-first layout ---- */
+  .stage{padding-top:0;padding-bottom:4px;}
+  .stage .orb{width:72px;height:72px;}
+  .stage .orb-icon{width:28px;height:28px;}
+  #mainToggle{display:none;}
+  footer{padding:2px 16px 10px;}
+  .composer{padding:8px 14px 4px;border-top:1px solid rgba(240,201,138,0.12);}
+  .composer-row{display:flex;align-items:center;gap:8px;}
+  .composer .photo-btn{margin:0;padding:0;width:42px;height:42px;border-radius:50%;justify-content:center;flex:0 0 auto;}
+  .composer .photo-btn span{display:none;}
+  .composer #typeInputWrap{flex:1;max-width:none;min-width:0;width:auto;}
+  .composer #typeInput{min-width:0;}
+  .mic-btn{flex:0 0 auto;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--dusk-indigo-2);color:var(--paper-dim);border:1px solid rgba(240,201,138,0.25);}
+  .mic-btn.on{background:var(--marigold);color:var(--dusk-indigo);border-color:transparent;}
 </style>
 </head>
 <body>
@@ -363,13 +378,13 @@
     <div class="orb idle" id="orb">
       <svg class="orb-icon" viewBox="0 0 24 24"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
     </div>
-    <div class="stage-status" id="stageStatus">Press Start to begin</div>
+    <div class="stage-status" id="stageStatus">Tap the mic to talk hands-free</div>
     <div class="stage-transcript" id="stageTranscript"></div>
-    <button class="photo-btn" id="photoBtn" title="Attach a photo or document">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16.5 6v11.5a4 4 0 01-8 0V5a2.5 2.5 0 015 0v10.5a1 1 0 01-2 0V6H10v9.5a2.5 2.5 0 005 0V5a4 4 0 00-8 0v12.5a5.5 5.5 0 0011 0V6h-1.5z"/></svg>
-      <span>Attach a photo or file</span>
-    </button>
-    <input type="file" id="photoInput" accept="image/*,application/pdf" capture="environment" style="display:none;">
+  </div>
+
+  <div class="convo" id="convo"></div>
+
+  <div class="composer">
     <div id="photoPreviewWrap" style="display:none;">
       <img id="photoPreview" alt="Selected photo" />
       <span id="filePreviewName" style="display:none;font-size:13px;color:var(--paper-dim);"></span>
@@ -379,16 +394,22 @@
       <span>Gaytri can still see your attached file</span>
       <button id="activeFileClear" title="Stop using this file">Remove</button>
     </div>
-    <div class="type-row">
-      <button class="type-toggle" id="typeToggle" title="Type instead of speaking">Type a message</button>
-      <div id="typeInputWrap" style="display:none;">
-        <input type="text" id="typeInput" placeholder="Type here...">
+    <div class="composer-row">
+      <button class="photo-btn" id="photoBtn" title="Attach a photo or file">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16.5 6v11.5a4 4 0 01-8 0V5a2.5 2.5 0 015 0v10.5a1 1 0 01-2 0V6H10v9.5a2.5 2.5 0 005 0V5a4 4 0 00-8 0v12.5a5.5 5.5 0 0011 0V6h-1.5z"/></svg>
+        <span>Attach a photo or file</span>
+      </button>
+      <input type="file" id="photoInput" accept="image/*,application/pdf" style="display:none;">
+      <button class="type-toggle" id="typeToggle" style="display:none;">Type a message</button>
+      <div id="typeInputWrap" style="display:flex;">
+        <input type="text" id="typeInput" placeholder="Type a message...">
         <button id="typeSend">Send</button>
       </div>
+      <button class="mic-btn" id="micBtn" title="Talk hands-free">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
+      </button>
     </div>
   </div>
-
-  <div class="convo" id="convo"></div>
 
   <footer>
     <button class="main-toggle start" id="mainToggle">Start Gaytri</button>
@@ -396,6 +417,7 @@
       <button class="util-link" id="diaryBtn">View diary</button>
       <button class="util-link" id="boardBtn">Family board</button>
       <button class="util-link" id="resetBtn">Reset today</button>
+      <button class="util-link" id="voiceBtn">Voice</button>
     </div>
   </footer>
 </div>
@@ -471,7 +493,7 @@ function setState(next){
   state = next;
   orb.className = 'orb ' + next;
   const statusEl = document.getElementById('stageStatus');
-  if(next==='idle') statusEl.innerHTML = running ? 'Waiting for someone to speak' : 'Press Start to begin';
+  if(next==='idle') statusEl.innerHTML = running ? 'Waiting for someone to speak' : 'Tap the mic to talk hands-free';
   if(next==='listening') statusEl.innerHTML = '<span class="live-dot"></span>Listening';
   if(next==='thinking') statusEl.textContent = 'Thinking...';
   if(next==='speaking') statusEl.textContent = 'Speaking (speak anytime to interrupt)';
@@ -583,6 +605,28 @@ function stopRecognizer(){
 }
 
 /* ---------- Text to speech ---------- */
+// A manually picked voice (by name) persists here across replies
+let chosenVoiceName = localStorage.getItem('gaytri_voice_name') || '';
+// Known natural-sounding female Indian voice names on common phones/browsers
+const PREFERRED_FEMALE_NAMES = ['neerja','swara','veena','lekha','priya','kalpana','raveena'];
+
+function pickVoice(hasDevanagari){
+  const voices = window.speechSynthesis.getVoices();
+  if(chosenVoiceName){
+    const picked = voices.find(v=>v.name===chosenVoiceName);
+    if(picked) return picked;
+  }
+  const inLang = voices.filter(v=>v.lang==='hi-IN' || v.lang==='en-IN');
+  const preferred = inLang.find(v=>PREFERRED_FEMALE_NAMES.some(n=>v.name.toLowerCase().includes(n)));
+  if(preferred) return preferred;
+  const female = inLang.find(v=>v.name.toLowerCase().includes('female'));
+  if(female) return female;
+  const anyIndian = hasDevanagari
+    ? voices.find(v=>v.lang==='hi-IN')
+    : voices.find(v=>v.lang==='en-IN');
+  return anyIndian || voices.find(v=>v.lang.startsWith('en'));
+}
+
 function speak(text){
   if(!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
@@ -594,11 +638,7 @@ function speak(text){
   utter.rate = 1.0;
   utter.pitch = 1.05;
 
-  const voices = window.speechSynthesis.getVoices();
-  const match = hasDevanagari
-    ? (voices.find(v=>v.lang==='hi-IN' && v.name.toLowerCase().includes('female')) || voices.find(v=>v.lang==='hi-IN'))
-    : (voices.find(v=>v.lang==='en-IN' && v.name.toLowerCase().includes('female')) || voices.find(v=>v.lang==='en-IN'))
-             || voices.find(v=>v.lang.startsWith('en'));
+  const match = pickVoice(hasDevanagari);
   if(match) utter.voice = match;
 
   utter.onstart = ()=>{
@@ -796,6 +836,11 @@ function clearActiveAttachment(){
   updateActiveFileNote();
 }
 document.getElementById('activeFileClear').addEventListener('click', clearActiveAttachment);
+const micBtn = document.getElementById('micBtn');
+micBtn.addEventListener('click', ()=>{
+  mainToggle.click();
+  micBtn.classList.toggle('on', running);
+});
 const photoBtn = document.getElementById('photoBtn');
 const photoInput = document.getElementById('photoInput');
 const photoPreviewWrap = document.getElementById('photoPreviewWrap');
@@ -938,6 +983,32 @@ document.getElementById('boardBtn').onclick = ()=>{
       div.className = 'diary-entry';
       div.innerHTML = `<div class="diary-date">${item.date} - noted by ${item.by}</div><div class="diary-text">${item.text}</div>`;
       body.appendChild(div);
+    });
+  }
+  diaryBackdrop.classList.add('open');
+};
+
+document.getElementById('voiceBtn').onclick = ()=>{
+  const voices = window.speechSynthesis.getVoices()
+    .filter(v=>v.lang==='hi-IN' || v.lang==='en-IN' || v.lang.startsWith('en'));
+  document.getElementById('diaryTitle').textContent = 'Choose a voice';
+  const body = document.getElementById('diaryBody');
+  body.innerHTML = '';
+  if(voices.length===0){
+    body.innerHTML = '<div class="empty-diary">No voices found yet - open this again in a moment.</div>';
+  } else {
+    voices.forEach(v=>{
+      const row = document.createElement('div');
+      row.className = 'diary-entry';
+      row.style.cursor = 'pointer';
+      row.innerHTML = `<div class="diary-text">${v.name} (${v.lang})${v.name===chosenVoiceName ? ' - selected' : ''}</div>`;
+      row.onclick = ()=>{
+        chosenVoiceName = v.name;
+        localStorage.setItem('gaytri_voice_name', v.name);
+        speak('Namaste, main Gaytri hoon.');
+        diaryBackdrop.classList.remove('open');
+      };
+      body.appendChild(row);
     });
   }
   diaryBackdrop.classList.add('open');
